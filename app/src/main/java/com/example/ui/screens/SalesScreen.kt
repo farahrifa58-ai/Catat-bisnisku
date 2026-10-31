@@ -101,10 +101,9 @@ fun SalesScreen(
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
           Text(
             text = "Catatan Penjualan",
             style = MaterialTheme.typography.titleLarge,
@@ -118,18 +117,6 @@ fun SalesScreen(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
           )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Button(
-          onClick = onOpenAddSale,
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight),
-          modifier = Modifier.testTag("btn_tambah_penjualan").height(40.dp)
-        ) {
-          Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("+ Jual", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
       }
 

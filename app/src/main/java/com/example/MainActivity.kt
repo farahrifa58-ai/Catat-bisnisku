@@ -61,6 +61,9 @@ import com.example.ui.components.AddExpenseModal
 import com.example.ui.components.AddItemModal
 import com.example.ui.components.AddSaleModal
 import com.example.ui.components.QuickActionBottomSheet
+import androidx.compose.runtime.mutableIntStateOf
+import com.example.ui.screens.AddBahanBakuStockModal
+import com.example.ui.screens.AddProductStockModal
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.ExpensesScreen
 import com.example.ui.screens.ProductionScreen
@@ -68,7 +71,6 @@ import com.example.ui.screens.ReportsScreen
 import com.example.ui.screens.SalesScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
-import com.example.ui.screens.StockAdjustModal
 import com.example.ui.screens.StockScreen
 import com.example.ui.theme.CatatBisniskuTheme
 import com.example.ui.theme.PrimaryGreenLight
@@ -117,6 +119,7 @@ fun CatatBisniskuApp(
   var isSettingsOpen by remember { mutableStateOf(false) }
   var isProductionOpen by remember { mutableStateOf(false) }
   var productionTargetProduct by remember { mutableStateOf<Item?>(null) }
+  var stockSelectedTab by remember { mutableIntStateOf(0) } // 0: Bahan Baku, 1: Produk Jadi
 
   // Creation Modals
   var showAddItemModal by remember { mutableStateOf(false) }
@@ -304,11 +307,17 @@ fun CatatBisniskuApp(
             MainNavScreen.STOK -> {
               ExtendedFloatingActionButton(
                 onClick = {
-                  addItemTypeTarget = if (isProduksi) ItemType.RAW_MATERIAL else ItemType.PRODUCT
+                  addItemTypeTarget = if (stockSelectedTab == 0) ItemType.RAW_MATERIAL else ItemType.PRODUCT
                   showAddItemModal = true
                 },
                 icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                text = { Text(if (isProduksi) "+ Bahan Baku" else "+ Tambah Barang", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = {
+                  Text(
+                    if (stockSelectedTab == 0) "+ Tambah Bahan Baku" else "+ Tambah Produk Jadi",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                  )
+                },
                 containerColor = PrimaryGreenLight,
                 contentColor = Color.White,
                 modifier = Modifier.testTag("fab_stock_add")
@@ -384,6 +393,8 @@ fun CatatBisniskuApp(
             MainNavScreen.STOK.name -> {
               StockScreen(
                 viewModel = viewModel,
+                selectedTab = stockSelectedTab,
+                onTabSelected = { stockSelectedTab = it },
                 onOpenAddDialog = { type ->
                   addItemTypeTarget = type
                   showAddItemModal = true
@@ -449,15 +460,30 @@ fun CatatBisniskuApp(
 
     // Modal: Quick Add Stock from Dashboard Alert
     quickAddStockTarget?.let { item ->
-      StockAdjustModal(
-        item = item,
-        isAddMode = true,
-        onDismiss = { quickAddStockTarget = null },
-        onConfirm = { qty, newCost, note ->
-          viewModel.addStock(item.id, qty, newCost, note)
-          quickAddStockTarget = null
-        }
-      )
+      if (item.itemType == ItemType.RAW_MATERIAL.name) {
+        AddBahanBakuStockModal(
+          item = item,
+          onDismiss = { quickAddStockTarget = null },
+          onConfirm = { qty, cost, note, recordExpense ->
+            viewModel.addStock(item.id, qty, cost, note, recordExpense)
+            quickAddStockTarget = null
+          }
+        )
+      } else {
+        AddProductStockModal(
+          item = item,
+          onDismiss = { quickAddStockTarget = null },
+          onOpenProduction = {
+            quickAddStockTarget = null
+            productionTargetProduct = item
+            isProductionOpen = true
+          },
+          onConfirm = { qty, cost, note ->
+            viewModel.addStock(item.id, qty, cost, note)
+            quickAddStockTarget = null
+          }
+        )
+      }
     }
   }
 }

@@ -116,7 +116,7 @@ fun DashboardScreen(
               maxLines = 1
             )
             Text(
-              text = if (isProduksi) "Usaha Produksi (Bahan → Produk)" else "Usaha Jual Beli (Barang Dagangan)",
+              text = "Pencatatan Bahan, Produk & Keuntungan",
               style = MaterialTheme.typography.bodySmall,
               color = PrimaryGreenLight,
               fontWeight = FontWeight.SemiBold,

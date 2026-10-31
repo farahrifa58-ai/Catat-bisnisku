@@ -165,6 +165,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
+  fun saveBusinessProfile(name: String, phone: String, address: String) {
+    viewModelScope.launch {
+      val existing = repository.getProfileSync() ?: BusinessProfile()
+      repository.saveProfile(
+        existing.copy(
+          name = name.ifBlank { "Bisnis Saya" },
+          type = BusinessType.PRODUKSI.name,
+          phone = phone,
+          address = address,
+          isConfigured = true
+        )
+      )
+      _snackbarMessage.emit("Profil usaha berhasil disimpan")
+    }
+  }
+
   fun switchBusinessType(newType: BusinessType) {
     viewModelScope.launch {
       val existing = repository.getProfileSync() ?: BusinessProfile()
@@ -227,9 +243,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
-  fun addStock(itemId: Long, qty: Double, costPrice: Double, note: String) {
+  fun addStock(itemId: Long, qty: Double, costPrice: Double, note: String, recordExpense: Boolean = false) {
     viewModelScope.launch {
       repository.addStock(itemId, qty, costPrice, note)
+      if (recordExpense && costPrice > 0 && qty > 0) {
+        val totalCost = qty * costPrice
+        val expenseNotes = if (note.isNotBlank()) note else "Pembelian stok bahan baku (+$qty)"
+        repository.addExpense(
+          title = "Beli Bahan Baku",
+          amount = totalCost,
+          category = "Bahan Baku",
+          notes = expenseNotes
+        )
+      }
       _snackbarMessage.emit("Stok berhasil ditambah (+$qty)")
     }
   }

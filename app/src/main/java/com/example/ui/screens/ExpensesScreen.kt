@@ -80,10 +80,9 @@ fun ExpensesScreen(
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
           Text(
             text = "Pengeluaran Usaha",
             style = MaterialTheme.typography.titleLarge,
@@ -97,18 +96,6 @@ fun ExpensesScreen(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
           )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Button(
-          onClick = onOpenAddExpense,
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
-          modifier = Modifier.testTag("btn_tambah_pengeluaran").height(40.dp)
-        ) {
-          Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("+ Biaya", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
       }
 

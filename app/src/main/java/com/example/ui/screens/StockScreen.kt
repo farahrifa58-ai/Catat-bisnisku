@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,23 +15,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +66,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.BusinessType
 import com.example.data.model.Item
 import com.example.data.model.ItemType
 import com.example.ui.components.EmptyStateView
@@ -64,31 +74,32 @@ import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.PrimaryGreen
 import com.example.ui.theme.PrimaryGreenLight
+import com.example.ui.theme.SecondaryTeal
 import com.example.ui.viewmodel.MainViewModel
 
 @Composable
 fun StockScreen(
   viewModel: MainViewModel,
+  selectedTab: Int = 0,
+  onTabSelected: (Int) -> Unit = {},
   onOpenAddDialog: (ItemType) -> Unit,
   onOpenProduction: (Item?) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  val profile by viewModel.businessProfile.collectAsState()
   val allProducts by viewModel.products.collectAsState()
   val allRawMaterials by viewModel.rawMaterials.collectAsState()
 
-  val isProduksi = profile?.type == BusinessType.PRODUKSI.name
-  var selectedTab by remember { mutableIntStateOf(0) } // 0: Bahan Baku, 1: Produk Jadi
   var searchQuery by remember { mutableStateOf("") }
 
   // Dialog States
-  var stockAdjustmentItem by remember { mutableStateOf<Item?>(null) }
-  var isAddStockMode by remember { mutableStateOf(true) } // true: + Stok, false: - Stok
+  var bahanBakuToAddStock by remember { mutableStateOf<Item?>(null) }
+  var productToAddStock by remember { mutableStateOf<Item?>(null) }
+  var itemToReduceStock by remember { mutableStateOf<Item?>(null) }
   var editItemTarget by remember { mutableStateOf<Item?>(null) }
   var deleteConfirmItem by remember { mutableStateOf<Item?>(null) }
 
-  val displayedItems = if (isProduksi) {
-    if (selectedTab == 0) allRawMaterials else allProducts
+  val displayedItems = if (selectedTab == 0) {
+    allRawMaterials
   } else {
     allProducts
   }.filter {
@@ -100,7 +111,7 @@ fun StockScreen(
       .fillMaxSize()
       .testTag("stock_screen")
   ) {
-    // Search & Action Header
+    // Search & Clean Header (No cluttered top button)
     Column(
       modifier = Modifier
         .fillMaxWidth()
@@ -108,41 +119,20 @@ fun StockScreen(
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
           Text(
-            text = if (isProduksi) "Stok Bahan & Produk" else "Stok Barang Dagangan",
+            text = "Stok Bahan & Produk",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             maxLines = 1
           )
           Text(
-            text = "${displayedItems.size} item terdaftar",
+            text = "${displayedItems.size} item terdaftar (${if (selectedTab == 0) "Bahan Baku" else "Produk Jadi"})",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
-          )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Button(
-          onClick = {
-            val type = if (isProduksi && selectedTab == 0) ItemType.RAW_MATERIAL else ItemType.PRODUCT
-            onOpenAddDialog(type)
-          },
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight),
-          modifier = Modifier.testTag("btn_tambah_item").height(40.dp)
-        ) {
-          Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text(
-            text = if (isProduksi && selectedTab == 0) "+ Bahan" else "+ Barang",
-            fontSize = 13.sp,
-            maxLines = 1,
-            softWrap = false
           )
         }
       }
@@ -160,47 +150,52 @@ fun StockScreen(
       )
     }
 
-    // Tabs for Usaha Produksi
-    if (isProduksi) {
-      TabRow(
-        selectedTabIndex = selectedTab,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = PrimaryGreenLight
-      ) {
-        Tab(
-          selected = selectedTab == 0,
-          onClick = { selectedTab = 0 },
-          text = {
-            Text(
-              "🌾 Bahan Baku (${allRawMaterials.size})",
-              fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-            )
-          }
-        )
-        Tab(
-          selected = selectedTab == 1,
-          onClick = { selectedTab = 1 },
-          text = {
-            Text(
-              "🧁 Produk Jadi (${allProducts.size})",
-              fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-            )
-          }
-        )
-      }
+    // Always-accessible Tabs for Bahan Baku & Produk Jadi
+    TabRow(
+      selectedTabIndex = selectedTab,
+      containerColor = MaterialTheme.colorScheme.surface,
+      contentColor = PrimaryGreenLight
+    ) {
+      Tab(
+        selected = selectedTab == 0,
+        onClick = { onTabSelected(0) },
+        text = {
+          Text(
+            "🌾 Bahan Baku (${allRawMaterials.size})",
+            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 13.sp
+          )
+        }
+      )
+      Tab(
+        selected = selectedTab == 1,
+        onClick = { onTabSelected(1) },
+        text = {
+          Text(
+            "🧁 Produk Jadi (${allProducts.size})",
+            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 13.sp
+          )
+        }
+      )
     }
 
-    // Items List
+    // Items List or Empty State
     if (displayedItems.isEmpty()) {
-      val itemLabel = if (isProduksi && selectedTab == 0) "bahan baku" else "barang"
+      val isBahan = selectedTab == 0
       EmptyStateView(
-        title = "Belum Ada $itemLabel",
-        description = if (searchQuery.isNotEmpty()) "Tidak ada hasil pencarian untuk \"$searchQuery\"" else "Tambahkan $itemLabel pertama Anda untuk mulai mengontrol stok dan mencatat penjualan.",
-        icon = Icons.Default.Inventory,
-        actionButtonText = "+ Tambah $itemLabel",
+        title = if (isBahan) "Belum Ada Bahan Baku" else "Belum Ada Produk Jadi",
+        description = if (searchQuery.isNotEmpty()) {
+          "Tidak ada hasil pencarian untuk \"$searchQuery\""
+        } else if (isBahan) {
+          "Tambahkan bahan baku (misal: tepung, gula, telur, minyak) untuk mencatat stok dan belanja bahan usaha."
+        } else {
+          "Tambahkan produk jadi yang siap dijual ke pelanggan untuk memantau stok dan keuntungan transaksi."
+        },
+        icon = if (isBahan) Icons.Default.ShoppingCart else Icons.Default.Inventory,
+        actionButtonText = if (isBahan) "+ Tambah Bahan Baku" else "+ Tambah Produk Jadi",
         onActionClick = {
-          val type = if (isProduksi && selectedTab == 0) ItemType.RAW_MATERIAL else ItemType.PRODUCT
-          onOpenAddDialog(type)
+          onOpenAddDialog(if (isBahan) ItemType.RAW_MATERIAL else ItemType.PRODUCT)
         },
         modifier = Modifier.weight(1f)
       )
@@ -216,14 +211,16 @@ fun StockScreen(
         items(displayedItems, key = { it.id }) { item ->
           StockItemCard(
             item = item,
-            isProduksi = isProduksi,
+            isRawMaterial = item.itemType == ItemType.RAW_MATERIAL.name,
             onAddStock = {
-              stockAdjustmentItem = item
-              isAddStockMode = true
+              if (item.itemType == ItemType.RAW_MATERIAL.name) {
+                bahanBakuToAddStock = item
+              } else {
+                productToAddStock = item
+              }
             },
             onReduceStock = {
-              stockAdjustmentItem = item
-              isAddStockMode = false
+              itemToReduceStock = item
             },
             onProduce = {
               onOpenProduction(item)
@@ -242,19 +239,42 @@ fun StockScreen(
     }
   }
 
-  // Stock Adjustment Dialog (+ / - Stok)
-  stockAdjustmentItem?.let { item ->
-    StockAdjustModal(
+  // 1. Dialog Beli / Tambah Stok Bahan Baku (Khusus Bahan Baku)
+  bahanBakuToAddStock?.let { item ->
+    AddBahanBakuStockModal(
       item = item,
-      isAddMode = isAddStockMode,
-      onDismiss = { stockAdjustmentItem = null },
-      onConfirm = { qty, newCost, note ->
-        if (isAddStockMode) {
-          viewModel.addStock(item.id, qty, newCost, note)
-        } else {
-          viewModel.reduceStock(item.id, qty, note)
-        }
-        stockAdjustmentItem = null
+      onDismiss = { bahanBakuToAddStock = null },
+      onConfirm = { qty, cost, note, recordExpense ->
+        viewModel.addStock(item.id, qty, cost, note, recordExpense)
+        bahanBakuToAddStock = null
+      }
+    )
+  }
+
+  // 2. Dialog Tambah Stok Produk Jadi (Khusus Produk Jadi)
+  productToAddStock?.let { item ->
+    AddProductStockModal(
+      item = item,
+      onDismiss = { productToAddStock = null },
+      onOpenProduction = {
+        productToAddStock = null
+        onOpenProduction(item)
+      },
+      onConfirm = { qty, cost, note ->
+        viewModel.addStock(item.id, qty, cost, note)
+        productToAddStock = null
+      }
+    )
+  }
+
+  // 3. Dialog Kurangi Stok (Tersendiri, rapi & ada opsi alasan pengurangan)
+  itemToReduceStock?.let { item ->
+    ReduceStockModal(
+      item = item,
+      onDismiss = { itemToReduceStock = null },
+      onConfirm = { qty, note ->
+        viewModel.reduceStock(item.id, qty, note)
+        itemToReduceStock = null
       }
     )
   }
@@ -276,7 +296,7 @@ fun StockScreen(
     AlertDialog(
       onDismissRequest = { deleteConfirmItem = null },
       title = { Text("Hapus ${item.name}?") },
-      text = { Text("Barang ini akan dihapus dari daftar stok usaha Anda. Tindakan ini tidak dapat dibatalkan.") },
+      text = { Text("Item ini akan dihapus dari daftar stok usaha Anda. Tindakan ini tidak dapat dibatalkan.") },
       confirmButton = {
         Button(
           onClick = {
@@ -300,7 +320,7 @@ fun StockScreen(
 @Composable
 fun StockItemCard(
   item: Item,
-  isProduksi: Boolean,
+  isRawMaterial: Boolean,
   onAddStock: () -> Unit,
   onReduceStock: () -> Unit,
   onProduce: () -> Unit,
@@ -382,7 +402,7 @@ fun StockItemCard(
 
         Column {
           Text(
-            text = if (item.itemType == ItemType.RAW_MATERIAL.name) "Harga Beli" else "Harga Modal",
+            text = if (isRawMaterial) "Harga Beli" else "Harga Modal",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -393,7 +413,7 @@ fun StockItemCard(
           )
         }
 
-        if (item.itemType != ItemType.RAW_MATERIAL.name) {
+        if (!isRawMaterial) {
           Column {
             Text(text = "Harga Jual", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
@@ -403,47 +423,89 @@ fun StockItemCard(
               color = PrimaryGreenLight
             )
           }
+        } else {
+          Column {
+            Text(text = "Nilai Stok", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+              text = formatRupiah(item.stock * item.costPrice),
+              style = MaterialTheme.typography.bodyMedium,
+              fontWeight = FontWeight.SemiBold,
+              color = SecondaryTeal
+            )
+          }
         }
       }
 
       Spacer(modifier = Modifier.height(12.dp))
 
-      // Quick Buttons
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-      ) {
-        OutlinedButton(
-          onClick = onReduceStock,
-          modifier = Modifier.weight(1f),
-          shape = RoundedCornerShape(10.dp)
+      // Action Buttons (Clean, strictly single - and single +, no wrapping)
+      if (isRawMaterial) {
+        // Tab Bahan Baku: Hanya 2 tombol (Kurang & Beli Stok)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          Icon(imageVector = Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("- Stok", fontSize = 12.sp)
-        }
+          OutlinedButton(
+            onClick = onReduceStock,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+          ) {
+            Icon(imageVector = Icons.Default.Remove, contentDescription = "Kurang", modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Kurang", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+          }
 
-        Button(
-          onClick = onAddStock,
-          modifier = Modifier.weight(1f),
-          shape = RoundedCornerShape(10.dp),
-          colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight)
+          Button(
+            onClick = onAddStock,
+            modifier = Modifier.weight(1.3f),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+          ) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = "Beli Bahan", modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Beli Stok", fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+          }
+        }
+      } else {
+        // Tab Produk Jadi: 3 tombol rapi (Kurang, Tambah Stok, Produksi)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-          Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("+ Stok", fontSize = 12.sp)
-        }
+          OutlinedButton(
+            onClick = onReduceStock,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+          ) {
+            Icon(imageVector = Icons.Default.Remove, contentDescription = "Kurang", modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(3.dp))
+            Text("Kurang", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+          }
 
-        if (isProduksi && item.itemType == ItemType.PRODUCT.name) {
+          OutlinedButton(
+            onClick = onAddStock,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+          ) {
+            Icon(imageVector = Icons.Default.Add, contentDescription = "Tambah", modifier = Modifier.size(14.dp), tint = PrimaryGreenLight)
+            Spacer(modifier = Modifier.width(3.dp))
+            Text("Tambah", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = PrimaryGreenLight, maxLines = 1, softWrap = false)
+          }
+
           Button(
             onClick = onProduce,
             modifier = Modifier.weight(1.2f),
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
           ) {
-            Icon(imageVector = Icons.Default.Build, contentDescription = null, modifier = Modifier.size(14.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Produksi", fontSize = 12.sp)
+            Icon(imageVector = Icons.Default.Build, contentDescription = "Produksi", modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(3.dp))
+            Text("Produksi", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
           }
         }
       }
@@ -451,72 +513,171 @@ fun StockItemCard(
   }
 }
 
+// -------------------------------------------------------------------------------------------------
+// MODAL: BELI / TAMBAH STOK BAHAN BAKU (Khusus Bahan Baku)
+// -------------------------------------------------------------------------------------------------
 @Composable
-fun StockAdjustModal(
+fun AddBahanBakuStockModal(
   item: Item,
-  isAddMode: Boolean,
   onDismiss: () -> Unit,
-  onConfirm: (qty: Double, newCost: Double, note: String) -> Unit
+  onConfirm: (qty: Double, newCost: Double, note: String, recordExpense: Boolean) -> Unit
 ) {
   var qtyStr by remember { mutableStateOf("") }
-  var costStr by remember { mutableStateOf(if (isAddMode && item.costPrice > 0) item.costPrice.toInt().toString() else "") }
+  var costStr by remember { mutableStateOf(if (item.costPrice > 0) item.costPrice.toInt().toString() else "") }
   var noteStr by remember { mutableStateOf("") }
+  var recordAsExpense by remember { mutableStateOf(true) }
+
+  val qty = qtyStr.toDoubleOrNull() ?: 0.0
+  val unitCost = costStr.toDoubleOrNull() ?: item.costPrice
+  val totalCost = qty * unitCost
 
   AlertDialog(
     onDismissRequest = onDismiss,
     title = {
-      Text(if (isAddMode) "Tambah Stok: ${item.name}" else "Kurangi Stok: ${item.name}", fontWeight = FontWeight.Bold)
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = null, tint = PrimaryGreenLight)
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+          Text("Beli Bahan Baku", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+          Text(item.name, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
+      }
     },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-          text = "Stok saat ini: ${item.stock} ${item.unit}",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        // Stock summary card
+        Card(
+          shape = RoundedCornerShape(10.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column {
+              Text("Stok Saat Ini", style = MaterialTheme.typography.labelSmall)
+              Text("${item.stock} ${item.unit}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+            if (qty > 0) {
+              Column(horizontalAlignment = Alignment.End) {
+                Text("Stok Setelah Beli", style = MaterialTheme.typography.labelSmall)
+                Text(
+                  "${item.stock + qty} ${item.unit}",
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 15.sp,
+                  color = PrimaryGreenLight
+                )
+              }
+            }
+          }
+        }
+
+        // Quick quantity chips
+        Column {
+          Text("Tambah Cepat:", style = MaterialTheme.typography.labelSmall)
+          LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(vertical = 4.dp)
+          ) {
+            val chips = listOf(1.0, 2.0, 5.0, 10.0, 25.0, 50.0)
+            items(chips) { amount ->
+              FilterChip(
+                selected = false,
+                onClick = {
+                  val current = qtyStr.toDoubleOrNull() ?: 0.0
+                  qtyStr = (current + amount).toString().removeSuffix(".0")
+                },
+                label = { Text("+$amount", fontSize = 12.sp) }
+              )
+            }
+          }
+        }
 
         OutlinedTextField(
           value = qtyStr,
           onValueChange = { qtyStr = it.filter { char -> char.isDigit() || char == '.' } },
-          label = { Text("Jumlah (${item.unit})") },
+          label = { Text("Jumlah Beli (${item.unit})") },
           placeholder = { Text("Contoh: 10") },
           singleLine = true,
           modifier = Modifier.fillMaxWidth()
         )
 
-        if (isAddMode) {
-          OutlinedTextField(
-            value = costStr,
-            onValueChange = { costStr = it.filter { char -> char.isDigit() } },
-            label = { Text("Harga Modal Beli per ${item.unit} (Rp)") },
-            placeholder = { Text("Opsional (default: ${formatRupiah(item.costPrice)})") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-          )
-        }
+        OutlinedTextField(
+          value = costStr,
+          onValueChange = { costStr = it.filter { char -> char.isDigit() } },
+          label = { Text("Harga Beli per ${item.unit} (Rp)") },
+          placeholder = { Text("Contoh: 12000") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
 
         OutlinedTextField(
           value = noteStr,
           onValueChange = { noteStr = it },
-          label = { Text("Catatan / Keterangan") },
-          placeholder = { Text(if (isAddMode) "Contoh: Beli dari supplier Toko Makmur" else "Contoh: Barang rusak / expired") },
+          label = { Text("Nama Toko / Supplier / Catatan") },
+          placeholder = { Text("Contoh: Toko Makmur / Pasar") },
           modifier = Modifier.fillMaxWidth()
         )
+
+        // Live total preview
+        if (qty > 0 && unitCost > 0) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFFE8F5E9),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+              Text("Total Biaya Belanja:", style = MaterialTheme.typography.labelSmall)
+              Text(
+                formatRupiah(totalCost),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryGreen
+              )
+            }
+          }
+
+          // Checkbox automatically record as expense
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { recordAsExpense = !recordAsExpense }
+          ) {
+            Checkbox(
+              checked = recordAsExpense,
+              onCheckedChange = { recordAsExpense = it },
+              colors = CheckboxDefaults.colors(checkedColor = PrimaryGreenLight)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              "Catat otomatis ke Pengeluaran Usaha",
+              style = MaterialTheme.typography.bodySmall,
+              fontWeight = FontWeight.Medium
+            )
+          }
+        }
       }
     },
     confirmButton = {
       Button(
         onClick = {
-          val qty = qtyStr.toDoubleOrNull() ?: 0.0
-          val cost = costStr.toDoubleOrNull() ?: 0.0
           if (qty > 0) {
-            onConfirm(qty, cost, noteStr)
+            onConfirm(qty, unitCost, noteStr, recordAsExpense)
           }
         },
-        enabled = (qtyStr.toDoubleOrNull() ?: 0.0) > 0,
-        colors = if (isAddMode) ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight) else ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+        enabled = qty > 0,
+        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight)
       ) {
-        Text(if (isAddMode) "Tambah Stok" else "Kurangi Stok")
+        Text("Simpan Pembelian")
       }
     },
     dismissButton = {
@@ -527,6 +688,317 @@ fun StockAdjustModal(
   )
 }
 
+// -------------------------------------------------------------------------------------------------
+// MODAL: TAMBAH STOK PRODUK JADI (Khusus Produk Jadi)
+// -------------------------------------------------------------------------------------------------
+@Composable
+fun AddProductStockModal(
+  item: Item,
+  onDismiss: () -> Unit,
+  onOpenProduction: () -> Unit,
+  onConfirm: (qty: Double, newCost: Double, note: String) -> Unit
+) {
+  var qtyStr by remember { mutableStateOf("") }
+  var costStr by remember { mutableStateOf(if (item.costPrice > 0) item.costPrice.toInt().toString() else "") }
+  var noteStr by remember { mutableStateOf("") }
+
+  val qty = qtyStr.toDoubleOrNull() ?: 0.0
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = Icons.Default.Inventory, contentDescription = null, tint = PrimaryGreenLight)
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+          Text("Tambah Stok Produk", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+          Text(item.name, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
+      }
+    },
+    text = {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        // Banner recommend using Produksi
+        Card(
+          shape = RoundedCornerShape(10.dp),
+          colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Default.Build, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Buat dari Bahan Baku?", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = PrimaryGreen)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+              "Gunakan fitur Produksi agar stok bahan baku otomatis berkurang dan modal produk dihitung tepat.",
+              fontSize = 11.sp,
+              color = Color(0xFF2E7D32)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(
+              onClick = onOpenProduction,
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+              modifier = Modifier.fillMaxWidth().height(34.dp),
+              contentPadding = PaddingValues(vertical = 0.dp)
+            ) {
+              Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(14.dp))
+              Spacer(modifier = Modifier.width(4.dp))
+              Text("Buka Form Produksi", fontSize = 12.sp)
+            }
+          }
+        }
+
+        Text(
+          text = "Atau Tambah Stok Langsung:",
+          style = MaterialTheme.typography.labelSmall,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // Stock summary
+        Card(
+          shape = RoundedCornerShape(10.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column {
+              Text("Stok Saat Ini", style = MaterialTheme.typography.labelSmall)
+              Text("${item.stock} ${item.unit}", fontWeight = FontWeight.Bold)
+            }
+            if (qty > 0) {
+              Column(horizontalAlignment = Alignment.End) {
+                Text("Stok Baru", style = MaterialTheme.typography.labelSmall)
+                Text("${item.stock + qty} ${item.unit}", fontWeight = FontWeight.Bold, color = PrimaryGreenLight)
+              }
+            }
+          }
+        }
+
+        // Quick add chips
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          val chips = listOf(1.0, 5.0, 10.0, 20.0, 50.0)
+          items(chips) { amount ->
+            FilterChip(
+              selected = false,
+              onClick = {
+                val current = qtyStr.toDoubleOrNull() ?: 0.0
+                qtyStr = (current + amount).toString().removeSuffix(".0")
+              },
+              label = { Text("+$amount", fontSize = 12.sp) }
+            )
+          }
+        }
+
+        OutlinedTextField(
+          value = qtyStr,
+          onValueChange = { qtyStr = it.filter { char -> char.isDigit() || char == '.' } },
+          label = { Text("Jumlah Stok Masuk (${item.unit})") },
+          placeholder = { Text("Contoh: 10") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+          value = costStr,
+          onValueChange = { costStr = it.filter { char -> char.isDigit() } },
+          label = { Text("Harga Modal per ${item.unit} (Rp)") },
+          placeholder = { Text("Opsional (default: ${formatRupiah(item.costPrice)})") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+          value = noteStr,
+          onValueChange = { noteStr = it },
+          label = { Text("Catatan / Keterangan") },
+          placeholder = { Text("Contoh: Stok awal / Retur konsumen") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = {
+          val cost = costStr.toDoubleOrNull() ?: item.costPrice
+          if (qty > 0) {
+            onConfirm(qty, cost, noteStr)
+          }
+        },
+        enabled = qty > 0,
+        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight)
+      ) {
+        Text("Tambah Stok")
+      }
+    },
+    dismissButton = {
+      OutlinedButton(onClick = onDismiss) {
+        Text("Batal")
+      }
+    }
+  )
+}
+
+// -------------------------------------------------------------------------------------------------
+// MODAL: KURANGI STOK (Rapi, Terstruktur, dengan Alasan Pengurangan)
+// -------------------------------------------------------------------------------------------------
+@Composable
+fun ReduceStockModal(
+  item: Item,
+  onDismiss: () -> Unit,
+  onConfirm: (qty: Double, note: String) -> Unit
+) {
+  var qtyStr by remember { mutableStateOf("") }
+  var selectedReason by remember { mutableStateOf("Barang Rusak / Basi") }
+  var customNote by remember { mutableStateOf("") }
+
+  val qty = qtyStr.toDoubleOrNull() ?: 0.0
+  val remainingStock = item.stock - qty
+  val isOverStock = qty > item.stock
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = Icons.Default.RemoveCircleOutline, contentDescription = null, tint = ExpenseRed)
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+          Text("Kurangi Stok", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = ExpenseRed)
+          Text(item.name, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        }
+      }
+    },
+    text = {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        // Stock tracker card
+        Card(
+          shape = RoundedCornerShape(10.dp),
+          colors = CardDefaults.cardColors(containerColor = if (isOverStock) Color(0xFFFFEBEE) else MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+          Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text("Stok Sekarang:", style = MaterialTheme.typography.bodySmall)
+              Text("${item.stock} ${item.unit}", fontWeight = FontWeight.Bold)
+            }
+            if (qty > 0) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Text("Akan Dikurangi:", style = MaterialTheme.typography.bodySmall, color = ExpenseRed)
+                Text("-$qty ${item.unit}", fontWeight = FontWeight.Bold, color = ExpenseRed)
+              }
+              Box(modifier = Modifier.fillMaxWidth().height(1.dp).padding(vertical = 4.dp).background(Color.LightGray))
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Text("Sisa Stok:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text(
+                  "${remainingStock.coerceAtLeast(0.0)} ${item.unit}",
+                  fontWeight = FontWeight.Bold,
+                  color = if (isOverStock) ExpenseRed else PrimaryGreen
+                )
+              }
+            }
+          }
+        }
+
+        if (isOverStock) {
+          Text(
+            text = "⚠️ Peringatan: Jumlah pengurangan melebihi stok yang tersedia!",
+            style = MaterialTheme.typography.labelSmall,
+            color = ExpenseRed,
+            fontWeight = FontWeight.Bold
+          )
+        }
+
+        // Reason chips
+        Column {
+          Text("Alasan Pengurangan:", style = MaterialTheme.typography.labelSmall)
+          LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(vertical = 4.dp)
+          ) {
+            val reasons = listOf("Barang Rusak / Basi", "Kadaluarsa", "Dipakai Sendiri", "Koreksi Fisik", "Lainnya")
+            items(reasons) { reason ->
+              FilterChip(
+                selected = selectedReason == reason,
+                onClick = { selectedReason = reason },
+                label = { Text(reason, fontSize = 11.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = ExpenseRed.copy(alpha = 0.15f),
+                  selectedLabelColor = ExpenseRed
+                )
+              )
+            }
+          }
+        }
+
+        OutlinedTextField(
+          value = qtyStr,
+          onValueChange = { qtyStr = it.filter { char -> char.isDigit() || char == '.' } },
+          label = { Text("Jumlah Pengurangan (${item.unit})") },
+          placeholder = { Text("Contoh: 1") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+          value = customNote,
+          onValueChange = { customNote = it },
+          label = { Text("Catatan / Keterangan Tambahan") },
+          placeholder = { Text("Contoh: Kemasan pecah saat bongkar") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = {
+          if (qty > 0) {
+            val finalNote = if (customNote.isNotBlank()) "$selectedReason: $customNote" else selectedReason
+            onConfirm(qty, finalNote)
+          }
+        },
+        enabled = qty > 0,
+        colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+      ) {
+        Text("Kurangi Stok")
+      }
+    },
+    dismissButton = {
+      OutlinedButton(onClick = onDismiss) {
+        Text("Batal")
+      }
+    }
+  )
+}
+
+// -------------------------------------------------------------------------------------------------
+// MODAL: EDIT ITEM (BARANG / BAHAN)
+// -------------------------------------------------------------------------------------------------
 @Composable
 fun EditItemModal(
   item: Item,

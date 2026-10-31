@@ -81,9 +81,6 @@ fun SettingsScreen(
   var businessName by remember(profile) { mutableStateOf(profile?.name ?: "Bisnis Saya") }
   var phone by remember(profile) { mutableStateOf(profile?.phone ?: "") }
   var address by remember(profile) { mutableStateOf(profile?.address ?: "") }
-  var selectedType by remember(profile) {
-    mutableStateOf(if (profile?.type == BusinessType.PRODUKSI.name) BusinessType.PRODUKSI else BusinessType.JUAL_BELI)
-  }
 
   // Dialogs
   var showBackupDialog by remember { mutableStateOf(false) }
@@ -114,7 +111,7 @@ fun SettingsScreen(
       }
     }
 
-    // 1. Profil Usaha & Jenis Usaha
+    // 1. Profil Usaha
     item {
       Card(
         shape = RoundedCornerShape(16.dp),
@@ -126,7 +123,7 @@ fun SettingsScreen(
             Icon(imageVector = Icons.Default.Storefront, contentDescription = null, tint = PrimaryGreenLight)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = "Profil & Model Usaha",
+              text = "Profil Usaha",
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold
             )
@@ -142,60 +139,6 @@ fun SettingsScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
           )
-
-          Spacer(modifier = Modifier.height(12.dp))
-
-          Text(
-            text = "Pilih Model Usaha:",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold
-          )
-
-          // Jual Beli Option
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { selectedType = BusinessType.JUAL_BELI }
-              .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            RadioButton(
-              selected = selectedType == BusinessType.JUAL_BELI,
-              onClick = { selectedType = BusinessType.JUAL_BELI }
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Column {
-              Text(BusinessType.JUAL_BELI.label, fontWeight = FontWeight.Bold)
-              Text(
-                "Toko, warung, pedagang (Barang Masuk → Penjualan)",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-              )
-            }
-          }
-
-          // Produksi Option
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { selectedType = BusinessType.PRODUKSI }
-              .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            RadioButton(
-              selected = selectedType == BusinessType.PRODUKSI,
-              onClick = { selectedType = BusinessType.PRODUKSI }
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Column {
-              Text(BusinessType.PRODUKSI.label, fontWeight = FontWeight.Bold)
-              Text(
-                "Kue, makanan, konveksi (Bahan Baku → Produksi → Produk)",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-              )
-            }
-          }
 
           Spacer(modifier = Modifier.height(10.dp))
 
@@ -222,7 +165,7 @@ fun SettingsScreen(
 
           Button(
             onClick = {
-              viewModel.saveBusinessProfile(businessName, selectedType, phone, address)
+              viewModel.saveBusinessProfile(businessName, phone, address)
             },
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenLight),
