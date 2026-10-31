@@ -1,0 +1,6 @@
+{
+  "name": "Catat Bisnisku",
+  "description": "Aplikasi pencatatan usaha sederhana untuk stok, produksi, penjualan, pengeluaran, dan pantau laba usaha secara offline-first.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
